@@ -1,6 +1,7 @@
 import pandas as pd 
 import scipy.stats as st
 import numpy as np 
+import seaborn as sns 
 def drawdown(return_series: pd.Series): 
     """Takes a time series of asset returns.
        returns a DataFrame with columns for 
@@ -216,11 +217,27 @@ def portfolio_return(weights, returns):
     """
     return weights.T @ returns 
 
-def portfolio_vol(weights, covmat): 
+def portfolio_volatility(weights, covmat): 
     """
     Weights -> Vol
     """
     return (weights.T @ covmat @ weights) ** 0.5 
+
+def plot_efficient_frontier2(n_points, asset_returns,covmat): 
+    """
+    plot 2 asset efficient frontier 
+    """
+    if asset_returns.shape[0] != 2: 
+        raise ValueError("plot_efficient_frontier2 can only plot 2-asset frontier") 
+
+    weights = np.array([np.array([w, 1 - w]) for w in np.linspace(0,1,n_points)]) 
+    portfolio_returns = np.array([portfolio_return(weight, asset_returns) for weight in weights]) 
+    portfolio_volatilitys = np.array([portfolio_volatility(weight,covmat) for weight in weights]) 
+    efficient_frontier = pd.DataFrame({
+        'portfolio_returns': portfolio_returns,
+        'portfolio_volatilitys': portfolio_volatilitys
+    })
+    return sns.scatterplot(x = 'portfolio_volatilitys', y = 'portfolio_returns', data = efficient_frontier)
 
 
 
