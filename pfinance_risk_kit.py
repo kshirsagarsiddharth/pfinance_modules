@@ -2,6 +2,7 @@ import pandas as pd
 import scipy.stats as st
 import numpy as np 
 import seaborn as sns 
+from scipy.optimize import minimize 
 def drawdown(return_series: pd.Series): 
     """Takes a time series of asset returns.
        returns a DataFrame with columns for 
@@ -240,10 +241,57 @@ def plot_efficient_frontier2(n_points, asset_returns,covmat):
     return sns.scatterplot(x = 'portfolio_volatilitys', y = 'portfolio_returns', data = efficient_frontier)
 
 
-
-
-
-
+def minimize_volatility(target_return,asset_returns, covmat):
+    """
+    I need you to get me this much <target_return> for least possible volatility 
+    target_return -> weight_vector 
+    """
+    # expected return has as many rows as we have assets 
+    n = asset_returns.shape[0] # these are number of assets returns that we want the weight for
+    # providing the initial guess to the optimizer 
+    initial_guess = np.repeat(1/n,n)  
+    # providing constraints to the optimizer 
+    # so that every weight should have some bounds 
+    # and the optimizer of scipy requires requence of bounds for every weights 
+    # [w1,w2,w3] --> [(0,1),(0,1),(0,1)] 
+    bounds = tuple((0.0,1.0) for _ in range(n))
+    # bounds = ((0.0,1.0),) * n 
+    # we have to make sure that whatever weights the optimizer comes up with 
+    # has to satisfy the constraints of returns 
+    # the function inside the constraints whill accept the 
+    # parameter of weights 
+    
+    # CONSTRAINT 1 
+    # the optimizer generally accepts only single argument (in this case it is weights) but we are passing a extra argument called asset_return
+    return_is_target = {
+        'type': 'eq',
+        'args': (asset_returns,), 
+        'fun': lambda weights, asset_returns:  target_return - portfolio_return(weights, asset_returns) # the portfolio returns for those weights is equal to the target return 
+        
+    }
+    # CONSTRAINT 2 
+    weights_sum_to_one = {
+        'type': 'eq',
+        'fun': lambda weights: np.sum(weights) - 1 
+    }
+    
+    
+    
+    # initial_guess: this is initial guess of weight we can think of passing this initial guess as argument to the optimizer 
+            #function and if we want to specify anything except the initial guess we are going to pass it into the args parameter 
+    # args : portfolio_volatility requires 2 params weights and
+            #covariance matrix so we are passing the second argument for function to minimize (portfolio_volatility the vovariance matrix)
+    
+    results = minimize(portfolio_volatility,
+                                 initial_guess, 
+                                 args = (covmat,), 
+                                 method = "SLSQP",
+                                 #options = {'disp': False}
+                                 constraints=(return_is_target, weights_sum_to_one),
+                                 bounds=bounds
+                                )
+    return results.x  
+    
     
 
 
