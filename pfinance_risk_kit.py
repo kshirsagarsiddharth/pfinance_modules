@@ -293,6 +293,31 @@ def minimize_volatility(target_return,asset_returns, covmat):
     return results.x  
     
     
+def optimal_weights(n_points, asset_returns, covmat): 
+    """
+    List of returns to run the optimizer on to minimize the volatility
+    """
+    # all we have to do is generate a list of target_returns and send that to the optimizer
+    # which already knows how to optimize weights for given target_returns 
+    
+    target_returns = np.linspace(asset_returns.min(), asset_returns.max(), n_points) 
+    weights = [minimize_volatility(target_return,asset_returns,covmat) for target_return in target_returns] 
+    return np.array(weights)
+    
+    
+def plot_efficient_frontier(n_points, asset_returns,covmat): 
+    """
+    plot asset efficient frontier 
+    """
+   
+    weights =  optimal_weights(n_points, asset_returns, covmat)
+    portfolio_returns = np.array([portfolio_return(weight, asset_returns) for weight in weights]) 
+    portfolio_volatilitys = np.array([portfolio_volatility(weight,covmat) for weight in weights]) 
+    efficient_frontier = pd.DataFrame({
+        'portfolio_returns': portfolio_returns,
+        'portfolio_volatilitys': portfolio_volatilitys
+    })
+    return sns.scatterplot(x = 'portfolio_volatilitys', y = 'portfolio_returns', data = efficient_frontier)
 
 
 
