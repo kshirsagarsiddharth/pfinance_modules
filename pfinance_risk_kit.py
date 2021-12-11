@@ -214,7 +214,13 @@ def portfolio_return(weights, returns):
     """
     Weights-> Returns
     """
-    return 
+    return weights.T @ returns 
+
+def portfolio_vol(weights, covmat): 
+    """
+    Weights -> Vol
+    """
+    return (weights.T @ covmat @ weights) ** 0.5 
 
 
 
