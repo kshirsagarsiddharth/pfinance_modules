@@ -304,8 +304,47 @@ def optimal_weights(n_points, asset_returns, covmat):
     weights = [minimize_volatility(target_return,asset_returns,covmat) for target_return in target_returns] 
     return np.array(weights)
     
+
+def maximum_sharp_ratio(asset_returns, covmat, riskfree_rate):
+    """
+   This function will give best possible sharp ratio
+    """
+    # expected return has as many rows as we have assets 
+    n = asset_returns.shape[0] # these are number of assets returns that we want the weight for
+    # providing the initial guess to the optimizer 
+    initial_guess = np.repeat(1/n,n)  
+
+    bounds = tuple((0.0,1.0) for _ in range(n))
+ 
+  
+    # CONSTRAINT 2 
+    weights_sum_to_one = {
+        'type': 'eq',
+        'fun': lambda weights: np.sum(weights) - 1 
+    }
     
-def plot_efficient_frontier(n_points, asset_returns,covmat): 
+    def neg_sharp_ratio(weights, riskfree_rate, asset_returns, covmat):
+        """
+        Returns the negative sharp ratio for given weights
+        """
+        returns = portfolio_return(weights, asset_returns)
+        volatility = portfolio_volatility(weights, covmat) 
+        sharp_ratio =  (returns - riskfree_rate) / volatility
+        return -1 * sharp_ratio 
+        
+        
+    results = minimize(neg_sharp_ratio,
+                                 initial_guess, 
+                                 args = (riskfree_rate,asset_returns,covmat), 
+                                 method = "SLSQP",
+                                 #options = {'disp': False}
+                                 constraints=(weights_sum_to_one),
+                                 bounds=bounds
+                                )
+    return results.x 
+
+    
+def plot_efficient_frontier(n_points, asset_returns,covmat, show_capital_market_line = False, style = '.-', riskfree_rate = 0): 
     """
     plot asset efficient frontier 
     """
@@ -317,8 +356,18 @@ def plot_efficient_frontier(n_points, asset_returns,covmat):
         'portfolio_returns': portfolio_returns,
         'portfolio_volatilitys': portfolio_volatilitys
     })
-    return sns.scatterplot(x = 'portfolio_volatilitys', y = 'portfolio_returns', data = efficient_frontier)
-
+    ax = sns.scatterplot(x = 'portfolio_volatilitys', y = 'portfolio_returns', data = efficient_frontier) 
+    # get the weights of maximum sharp ratio 
+    if show_capital_market_line:
+        weights_maximum_sharp_ratio = maximum_sharp_ratio(asset_returns,covmat,riskfree_rate)
+        returns_max_sharp_ratio = portfolio_return(weights_maximum_sharp_ratio,asset_returns)
+        volatility_max_sharp_ratio = portfolio_volatility(weights_maximum_sharp_ratio, covmat) 
+        # the x points of cml is 0 because risk free rate has zero volatility and the second x point if volatility of maximum sharp ratio  
+        cml_x = [0,volatility_max_sharp_ratio] 
+        # the y values are the risk free rate and returns of weights of maximum sharp ratio
+        cml_y = [riskfree_rate, returns_max_sharp_ratio] 
+        ax.plot(cml_x, cml_y, color = 'green', marker = 'o', linestyle = 'dashed', linewidth=3)
+    return ax 
 
 
 
