@@ -343,8 +343,21 @@ def maximum_sharp_ratio(asset_returns, covmat, riskfree_rate):
                                 )
     return results.x 
 
-    
-def plot_efficient_frontier(n_points, asset_returns,covmat, show_capital_market_line = False, style = '.-', riskfree_rate = 0): 
+
+def global_minimum_variance(covmat):
+    """
+    if there is a situation where all the portfolio expected returns are same so the optimizer is going to 
+    optimize the max sharp ratio by only decreasing the volatility. 
+    `This is because the we are optimizing for shapr ratio which has the defination of <returns> / <volatility>
+    and be it any combination of weights they are going to sum to 1 so the <returns> remains costant to the way 
+    optimizer is going to find the max-sharp ratio is by minimizing the volatility
+    `
+    """
+    n = covmat.shape[0]
+
+    return maximum_sharp_ratio(riskfree_rate=0,covmat=covmat,asset_returns=np.repeat(1,n))
+
+def plot_efficient_frontier(n_points, asset_returns,covmat, show_capital_market_line = False, style = '.-', riskfree_rate = 0, show_equal_weights = False, show_global_minimum_variance = False): 
     """
     plot asset efficient frontier 
     """
@@ -352,12 +365,29 @@ def plot_efficient_frontier(n_points, asset_returns,covmat, show_capital_market_
     weights =  optimal_weights(n_points, asset_returns, covmat)
     portfolio_returns = np.array([portfolio_return(weight, asset_returns) for weight in weights]) 
     portfolio_volatilitys = np.array([portfolio_volatility(weight,covmat) for weight in weights]) 
+
     efficient_frontier = pd.DataFrame({
         'portfolio_returns': portfolio_returns,
         'portfolio_volatilitys': portfolio_volatilitys
     })
     ax = sns.scatterplot(x = 'portfolio_volatilitys', y = 'portfolio_returns', data = efficient_frontier) 
     # get the weights of maximum sharp ratio 
+
+    if show_global_minimum_variance:
+        n = asset_returns.shape[0] 
+        weights_gmv = global_minimum_variance(covmat) 
+        returns_gmv = portfolio_return(weights_gmv,asset_returns)
+        volatility_gmv = portfolio_volatility(weights_gmv, covmat) 
+        ax.plot([volatility_gmv], [returns_gmv], marker = 'o', linewidth = 12, color = 'goldenrod')
+    
+    if show_equal_weights:
+        n = asset_returns.shape[0] 
+        equal_weights = np.repeat(1/n,n) 
+        returns_equal_weights = portfolio_return(equal_weights,asset_returns)
+        volatility_equal_weights = portfolio_volatility(equal_weights, covmat) 
+        ax.plot([volatility_equal_weights], [returns_equal_weights], marker = 'o', linewidth = 12, color = 'red')
+
+
     if show_capital_market_line:
         weights_maximum_sharp_ratio = maximum_sharp_ratio(asset_returns,covmat,riskfree_rate)
         returns_max_sharp_ratio = portfolio_return(weights_maximum_sharp_ratio,asset_returns)
