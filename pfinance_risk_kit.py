@@ -163,6 +163,30 @@ def get_ind_returns():
     #ind.columns.str.strip() 
     return ind 
 
+
+def get_ind_size():
+    """
+    Load and format ken french 30 industry portfolio sizes
+    """
+    ind = pd.read_csv('D:/python-finance/coursera_finance/data/ind30_m_size.csv', header = 0, index_col = 0, parse_dates = True)
+    ind.index = pd.to_datetime(ind.index, format = "%Y%m").to_period('M')
+    ind.columns = map(str.strip, ind.columns)
+    #ind.columns.str.strip() 
+    return ind 
+
+
+def get_ind_nfirms():
+    """
+    Load and format ken french 30 industry portfolio sizes
+    """
+    ind = pd.read_csv('D:/python-finance/coursera_finance/data/ind30_m_nfirms.csv', header = 0, index_col = 0, parse_dates = True) 
+    ind.index = pd.to_datetime(ind.index, format = "%Y%m").to_period('M')
+    ind.columns = map(str.strip, ind.columns)
+    #ind.columns.str.strip() 
+    return ind 
+
+
+
 def annualize_returns(r, periods_per_year): 
     """
     Annualizes a set of returns:
