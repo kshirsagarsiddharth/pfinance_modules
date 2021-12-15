@@ -424,9 +424,9 @@ def plot_efficient_frontier(n_points, asset_returns,covmat, show_capital_market_
     return ax 
 
 
-def run_cppi(risky_r, safe_r = None, m = 3, start = 1000, floor = 0.8, riskfree_rate = 0.03):
+def run_cppi(risky_r, safe_r = None, m = 3, start = 1000, floor = 0.8, riskfree_rate = 0.03, drawdown = None):
     """
-     Run a backtest of the CPPI strategy, given a set of returns for the risky asset
+    Run a backtest of the CPPI strategy, given a set of returns for the risky asset
     Returns a dictionary containing: Asset Value History, Risk Budget History, Risky Weight History
     """
     # Set Up CPPI parameters 
@@ -434,6 +434,7 @@ def run_cppi(risky_r, safe_r = None, m = 3, start = 1000, floor = 0.8, riskfree_
     n_steps = len(dates) 
     account_value = start 
     floor_value = start * floor 
+    peak = start 
 
     if isinstance(risky_r, pd.Series): 
         risky_r = pd.DataFrame(risky_r, columns = ['R']) 
@@ -447,6 +448,10 @@ def run_cppi(risky_r, safe_r = None, m = 3, start = 1000, floor = 0.8, riskfree_
     cushion_history = pd.DataFrame().reindex_like(risky_r) 
 
     for step in range(n_steps): 
+        if drawdown is not None:
+            # floor value is dynamic it is always 80% of the previous peak if  
+            peak = np.maximum(peak, account_value)
+            floor_value = peak * (1 - drawdown)
         cushion = (account_value - floor_value) / account_value
         risky_weight = m * cushion 
         risky_weight = np.minimum(risky_weight,1) 
