@@ -424,23 +424,79 @@ def plot_efficient_frontier(n_points, asset_returns,covmat, show_capital_market_
     return ax 
 
 
+def run_cppi(risky_r, safe_r = None, m = 3, start = 1000, floor = 0.8, riskfree_rate = 0.03):
+    """
+     Run a backtest of the CPPI strategy, given a set of returns for the risky asset
+    Returns a dictionary containing: Asset Value History, Risk Budget History, Risky Weight History
+    """
+    # Set Up CPPI parameters 
+    dates = risky_r.index 
+    n_steps = len(dates) 
+    account_value = start 
+    floor_value = start * floor 
 
+    if isinstance(risky_r, pd.Series): 
+        risky_r = pd.DataFrame(risky_r, columns = ['R']) 
+    
+    if safe_r is None: 
+        safe_r = pd.DataFrame().reindex_like(risky_r) 
+        safe_r.values[:] = riskfree_rate / 12 
+        # 
+    account_history = pd.DataFrame().reindex_like(risky_r)
+    risky_weights_history = pd.DataFrame().reindex_like(risky_r)
+    cushion_history = pd.DataFrame().reindex_like(risky_r) 
 
+    for step in range(n_steps): 
+        cushion = (account_value - floor_value) / account_value
+        risky_weight = m * cushion 
+        risky_weight = np.minimum(risky_weight,1) 
+        risky_weight = np.maximum(risky_weight,0)
+        safe_weight = 1 - risky_weight 
+        risky_allocation = account_value * risky_weight 
+        safe_allocation = account_value * safe_weight 
 
+        account_value = risky_allocation * (1 + risky_r.iloc[step]) + safe_allocation * (1 + safe_r.iloc[step]) 
 
+        cushion_history.iloc[step] = cushion 
+        risky_weights_history.iloc[step] = risky_weight 
+        account_history.iloc[step] = account_value 
+    risky_wealth = start * (1 + risky_r).cumprod() 
 
+    backtest_result = {
+        'cppi_wealth': account_history, 
+        'risky_wealth': risky_wealth,
+        'risk_budget': cushion_history,
+        'risky_allocation': risky_weights_history,
+        'm': m,
+        'start': start,
+        'floor': floor, 
+        'risky_r': risky_r,
+        'safe_r': safe_r
+    }
 
+    return backtest_result 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+def summary_stats(r: pd.Series, riskfree_rate = 0.03): 
+    """
+    Return a DataFrame that contaons aggregated summary stats for the returns 
+    in the column r 
+    """
+    annualized_returns = annualize_returns(r, periods_per_year=12)
+    annualized_volatility = annualize_volatility(r, periods_per_year=12) 
+    annualized_sharpratio = sharpe_ratio(r,riskfree_rate,12) 
+    maximum_drawdown = drawdown(r)['drawdown'].min() 
+    skewness_ = skewness(r)  
+    kurtosis_ = kurtosis(r) 
+    value_at_risk_historic = var_historic(r)
+    value_at_risk_parametric = var_parametric_cornsih_fisher(r) 
+    
+    return pd.DataFrame({
+        'annualized_returns': annualized_returns,
+        'annualized_volatility': annualized_volatility,
+        'annualized_sharpratio': annualized_sharpratio,
+        'maximum_drawdown': maximum_drawdown,
+        'skewness': skewness_,
+        'kurtosis': kurtosis_,
+        'value_at_risk_historic': value_at_risk_historic,
+        'value_at_risk_parametric': value_at_risk_parametric
+    }, index = [0]).T
