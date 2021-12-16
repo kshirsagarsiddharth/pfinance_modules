@@ -449,9 +449,11 @@ def run_cppi(risky_r, safe_r = None, m = 3, start = 1000, floor = 0.8, riskfree_
 
     for step in range(n_steps): 
         if drawdown is not None:
-            # floor value is dynamic it is always 80% of the previous peak if  
+            # floor value is dynamic it is always 80% of the previous peak
+            # we do not want to keep 80% of our wealth 
             peak = np.maximum(peak, account_value)
             floor_value = peak * (1 - drawdown)
+
         cushion = (account_value - floor_value) / account_value
         risky_weight = m * cushion 
         risky_weight = np.minimum(risky_weight,1) 
