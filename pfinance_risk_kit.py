@@ -507,3 +507,15 @@ def summary_stats(r: pd.Series, riskfree_rate = 0.03):
         'value_at_risk_historic': value_at_risk_historic,
         'value_at_risk_parametric': value_at_risk_parametric
     }, index = [0]).T
+
+def geometric_brownian_motion(num_years = 10, n_senarios = 1000, mu = 0.07, sigma = 0.15, steps_per_year = 12, initial_price = 100):
+    """
+    Finds random simulations of prices
+    """
+    dt = 1 / steps_per_year 
+    n_steps = int(num_years * steps_per_year) 
+    rets_plus_one = np.random.normal(loc = (1 + mu*dt), scale = sigma * np.sqrt(dt), size = (n_steps, n_senarios)) 
+    prices = pd.DataFrame(rets_plus_one).cumprod() * initial_price 
+    return prices 
+
+
