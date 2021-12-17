@@ -3,6 +3,9 @@ import scipy.stats as st
 import numpy as np 
 import seaborn as sns 
 from scipy.optimize import minimize 
+import matplotlib.pyplot as plt 
+import ipywidgets as widgets
+from IPython.display import display
 def drawdown(return_series: pd.Series): 
     """Takes a time series of asset returns.
        returns a DataFrame with columns for 
@@ -508,14 +511,99 @@ def summary_stats(r: pd.Series, riskfree_rate = 0.03):
         'value_at_risk_parametric': value_at_risk_parametric
     }, index = [0]).T
 
-def geometric_brownian_motion(num_years = 10, n_senarios = 1000, mu = 0.07, sigma = 0.15, steps_per_year = 12, initial_price = 100):
+def geometric_brownian_motion(num_years = 10, n_senarios = 1000, mu = 0.07, sigma = 0.15, steps_per_year = 12, initial_price = 100, prices = True):
     """
-    Finds random simulations of prices
+    Evolution of Geomrtric Brownain Motion trajectories, sych for a stock price through a monte-carlo simulations 
+    :param num_years: The number of years to generate data for
+    :param n_senarios: The number of senarios/trajectories 
+    :param mu: Annualized drift 
+    :param sigma: annualized volatility 
+    :param steps_per_year: granularity of the simulations 
+    :param initial_price: initial price
+    :param prices: return prices values of return values
+    :return: a numpy array of n_paths columns and n_years*steps_per_year rows
+
     """
     dt = 1 / steps_per_year 
     n_steps = int(num_years * steps_per_year) 
     rets_plus_one = np.random.normal(loc = (1 + mu*dt), scale = sigma * np.sqrt(dt), size = (n_steps, n_senarios)) 
-    prices = pd.DataFrame(rets_plus_one).cumprod() * initial_price 
+    prices = pd.DataFrame(rets_plus_one).cumprod() * initial_price if prices else rets_plus_one - 1 
     return prices 
 
+
+def show_cppi(n_senarios = 50, mu = 0.07, sigma = 0.15, m = 3, floor = 0.8, riskfree_rate = 0.03, y_max = 100, steps_per_year = 12):
+    """
+    Plot results of Monte Carlo simulations of CPPI
+    """
+    start = 100 
+    simulated_returns = geometric_brownian_motion(n_senarios=n_senarios,
+                                                      mu = mu, 
+                                                      sigma = sigma,
+                                                      steps_per_year=steps_per_year,
+                                                      prices = False 
+                                                     )
+    risky_returns = pd.DataFrame(simulated_returns)
+    # run the cppi back test 
+    back_test_results = run_cppi(risky_returns,
+                                     m = m, 
+                                     riskfree_rate=riskfree_rate,
+                                     start = start,
+                                     floor = floor 
+                                    )
+    wealth = back_test_results['cppi_wealth'] 
+    y_max = wealth.values.max() * y_max / 100 
+    # this is the final wealth generated form each simulations 
+    terminal_wealth = wealth.iloc[-1]
+    terminal_wealth_mean = terminal_wealth.mean() 
+    terminal_wealth_median = terminal_wealth.median() 
+    
+    failure_mask = terminal_wealth < floor * start 
+    number_failures = np.sum(failure_mask)
+    percentage_failures = number_failures / n_senarios 
+    # expected shortfall: when there is a failure what is the average failure extent 
+    # if we lost money below the floor value how much actually did we loose 
+    expected_shortfall = (np.dot(failure_mask, terminal_wealth - start * floor) / number_failures) if number_failures > 0 else 0.0 
+    
+    
+    
+    
+    fig, (wealth_ax, hist_ax) = plt.subplots(nrows=1, ncols=2, sharey=True, dpi = 130)  
+    wealth.plot(legend = False, alpha = 0.3, color = 'steelblue', figsize = (11,5), ax = wealth_ax)
+    wealth_ax.axhline(y = start, ls = ':', color = 'black') 
+    wealth_ax.axhline(y = start * floor, ls = '--', color = 'red')
+    wealth_ax.set_ylim(top = y_max)
+    wealth_ax.set_ylabel('cppi_wealth')
+    wealth_ax.set_title('simulations')
+    
+    terminal_wealth.plot.hist(ax = hist_ax, bins = 50, fc = 'darkorange', orientation = 'horizontal', alpha = 0.8) 
+    hist_ax.axhline(y = start, ls = ':', color = 'black', label = 'start_price')
+    hist_ax.axhline(y = terminal_wealth_mean, ls = '--', color = 'purple', label = 'mean')
+    hist_ax.axhline(y = terminal_wealth_median, ls = '--', color = 'blue', label = 'median')
+    hist_ax.set_title('Terminal Wealth Distribution')
+    
+    #wealth_ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    hist_ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    hist_ax.annotate(f"Mean: {int(terminal_wealth_mean)}", xy = (1.01,0.9), xycoords = 'axes fraction')
+    hist_ax.annotate(f"Median: {int(terminal_wealth_median)}", xy = (1.01,0.85), xycoords = 'axes fraction')
+    
+    if floor > 0.01: 
+        hist_ax.axhline(y = start * floor, ls = '--', color = 'red')
+        hist_ax.annotate(f"Violations: {number_failures} \n\nShortfall = ${expected_shortfall}", xy = (0.7,0.7), xycoords = 'axes fraction')
+    
+def display_cppi(show_cppi = show_cppi):
+    """
+    uses the above defined function to gain interactivity to the cppi-backtesting
+    """
+    cppi_controls = widgets.interactive(
+    show_cppi,
+    n_senarios = widgets.IntSlider(min = 1, max = 1000, step = 5, value = 50),
+    mu = widgets.FloatSlider(min = 0.0, max = 0.2, step = 0.01,value = 0.07),
+    sigma = widgets.FloatSlider(min = 0.0, max = 0.3, step = 0.05, value = 0.15),
+    floor = widgets.FloatSlider(min = 0, max = 1, step = 0.1, value = 0.8),
+    m = widgets.FloatSlider(min = 1, max = 5, step = 0.5, value = 2), 
+    riskfree_rate = widgets.FloatSlider(min = 0.0, max = 0.05, step = 0.01, value = 0.03), 
+    y_max = widgets.IntSlider(min = 0, max = 100, step = 1, value = 100, description = 'Zoom Y Axis'),
+    steps_per_year = widgets.IntSlider(min = 1, max = 12, value = 12))
+
+    display(cppi_controls)
 
