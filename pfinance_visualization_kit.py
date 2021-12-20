@@ -7,6 +7,7 @@ import plotly.offline
 from plotly import tools 
 import ipywidgets as widgets 
 from IPython.display import display
+from . import pfinance_risk_kit as pfk
 cf.go_offline()
 cf.set_config_file(offline=False, world_readable=True)
 import datetime
@@ -192,3 +193,133 @@ class DisplayReturns():
         equal_returns.iplot(kind = 'histogram', theme = 'solar')
         equal_cumulative_returns.iplot(kind = 'histogram', theme = 'solar')
         equal_cumulative_returns.iplot(theme = 'solar')
+
+
+class DisplayRiskRatios: 
+    a = widgets.Checkbox(
+    value=True,
+    description='drawdown',
+    disabled=False
+    )
+
+    b = widgets.Checkbox(
+        value=True,
+        description='skewness',
+        disabled=False
+    )
+
+    c = widgets.Checkbox(
+        value=False,
+        description='kurtosis',
+        disabled=False
+    )
+    d = widgets.Checkbox(
+        value=False,
+        description='value_at_risk',
+        disabled=False
+    )
+
+    e = widgets.Checkbox(
+        value=False,
+        description='annualized_sharp_ratio',
+        disabled=False
+    )
+
+    f = widgets.Checkbox(
+        value=False,
+        description='annualized_returns',
+        disabled=False
+    )
+    g = widgets.Checkbox(
+        value=False,
+        description='annualized_volatility',
+        disabled=False
+    )
+
+    def __init__(self, sector_object) -> None:
+        self.df = sector_object.df 
+        self.COMPANY_LIST = sector_object.COMPANY_LIST 
+        self.RISK_DATAFRAME = self.company_risk_dataframe().set_index('company_name') 
+        self.RISK_MEASURE = ['drawdown',
+                            'skewness',
+                            'kurtosis',
+                            'value_at_risk',
+                            'annualized_returns',
+                            'annualize_volatility',
+                            'annualized_sharp_ration']
+        self.display_risk_measures()
+
+    def return_risk_summary(self,company_name,r): 
+        """
+        Compute all risk ratios
+        """
+        drawdown = pfk.drawdown(r)['drawdown'].min() 
+        skewness = pfk.skewness(r)
+        kurtosis = pfk.semi_deviation(r) 
+        var = pfk.var_parametric_cornsih_fisher(r) 
+        annualized_returns = pfk.annualize_returns(r,periods_per_year=365) 
+        annualized_volatility = pfk.annualize_volatility(r, periods_per_year=365) 
+        annualized_sharp_ratio = pfk.sharpe_ratio(r, periods_per_year=365, riskfree_rate = 0.03) 
+        return {   
+            'company_name': company_name,
+            'drawdown' : drawdown,
+            'skewness' : skewness,
+            'kurtosis': kurtosis,
+            'value_at_risk': var, 
+            'annualized_returns': annualized_returns, 
+            'annualize_volatility': annualized_volatility,
+            'annualized_sharp_ration': annualized_sharp_ratio         
+        }
+    
+    def return_risk(self,company_name):
+        """
+        :param company_name: company to pick 
+        returns the risk associated with each company
+        """
+
+        df2 = self.df[self.df['ticker'] == company_name]
+        df2['Date'] = pd.to_datetime(df2['Date'])
+    
+        df2 = df2.set_index('Date')
+        df2['returns'] = df2['Adj Close'].pct_change()
+        df2 = df2.dropna()
+        return self.return_risk_summary(company_name, df2['returns'])
+    
+    def company_risk_dataframe(self): 
+        risk_list = []
+        for value in self.COMPANY_LIST: 
+            risk_list.append(self.return_risk(value))
+        return pd.DataFrame(risk_list) 
+    
+    def jp(self,drawdown, skewness, kurtosis, value_at_risk,annualized_sharp_ratio,annualized_returns,annualized_volatility):
+        RISK_MEASURE = []
+        if drawdown: 
+            RISK_MEASURE.append('drawdown')
+        if skewness: 
+            RISK_MEASURE.append('skewness')
+        if kurtosis:
+            RISK_MEASURE.append('kurtosis')
+        if value_at_risk:
+            RISK_MEASURE.append('value_at_risk')
+        if annualized_sharp_ratio:
+            RISK_MEASURE.append('annualized_sharp_ration')
+        if annualized_returns:
+            RISK_MEASURE.append('annualized_returns') 
+        if annualized_volatility:
+            RISK_MEASURE.append('annualize_volatility')
+        
+        return self.RISK_DATAFRAME.loc[:,RISK_MEASURE].iplot(kind = 'heatmap', dimensions = (900,400), colorscale = 'RdBu')
+        print(RISK_MEASURE)
+    
+    def display_risk_measures(self):
+        return widgets.interact(self.jp,
+                     drawdown = self.a,
+                     skewness = self.b,
+                     kurtosis = self.c,
+                     value_at_risk = self.d,
+                     annualized_sharp_ratio = self.e,
+                     annualized_returns = self.f,
+                     annualized_volatility = self.g
+
+                    )
+    
