@@ -25,7 +25,7 @@ class ITStocks:
         :param df: dataframe to resample
         :param code: time period to resample for
         """
-        df = df.resample(rule = code).mean()
+        df = df.resample(rule = code).last()
         return df
 
     def pick_company(self,company_name, time_period_start,time_period_end, time_offset):
@@ -51,9 +51,48 @@ class ITStocks:
                                     subplots = True,
                                     xTitle = 'Date'
                         )
+        
+    def pick_company_candles(self,company_name, time_period_start,time_period_end, time_offset):
+        """
+        :param company_name: company to pick 
+        :param time_period: time period used for visualization
+        """
+        df2 = self.df[self.df['ticker'] == company_name]
+        df2['Date'] = pd.to_datetime(df2['Date'])
+    
+        df2 = df2.set_index('Date')
+        df2 = self.select_time_period(df2, time_offset)
+        
+            
+        if time_period_start or time_period_end:
+            df2 = df2.loc[time_period_start:time_period_end]
+            
+        df2 = df2.dropna()
+        qf = cf.QuantFig(df2[['Open','High','Low','Close']])
+        
+        #qf.add_bollinger_bands()
+        qf.add_rsi(periods=14, yTitle='RSI')
+        qf.iplot(theme='solar', up_color='green', down_color='red', dimensions = (1500,600),
+        width = 6,title = company_name
+
+        )
 
     def display_vizs(self):
         controls = widgets.interact(self.pick_company,
+                                company_name = widgets.Dropdown(options = self.COMPANY_LIST,index = 2),
+                                time_period_start = widgets.DatePicker(description = 'Pick a time'),
+                                time_period_end = widgets.DatePicker(description = 'Pick a time'),
+                                time_offset = widgets.ToggleButtons(
+                                                                    options=['D','W','M','Q','A'],
+                                                                    description='Time Offset:',
+                                                                    disabled=False,
+                                                                    button_style='info', # 'success', 'info', 'warning', 'danger' or ''
+                                                                    tooltips=['Daily', 'Weekly', 'Monthly','Annually'],
+                                                                #     icons=['check'] * 3
+                                                                )
+                            )
+    def display_vizs_candles(self):
+        controls = widgets.interact(self.pick_company_candles,
                                 company_name = widgets.Dropdown(options = self.COMPANY_LIST,index = 2),
                                 time_period_start = widgets.DatePicker(description = 'Pick a time'),
                                 time_period_end = widgets.DatePicker(description = 'Pick a time'),
