@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import cufflinks as cf 
 import numba as nb 
 import plotly.offline
+from plotly import tools 
 import ipywidgets as widgets 
 from IPython.display import display
 cf.go_offline()
@@ -13,7 +14,7 @@ import datetime
 class ITStocks:
     def __init__(self) -> None:
     
-        self.df = pd.read_csv("../IT.NS.CSV")
+        self.df = pd.read_csv("../IT.NS.CSV", parse_dates=True)
         self.COMPANY_LIST = ['MPHASIS.NS', 'COFORGE.NS', 'MINDTREE.NS', 'INFY.NS', 'TECHM.NS',
         'LTI.NS', 'HCLTECH.NS', 'TCS.NS', 'WIPRO.NS', 'LTTS.NS']
 
@@ -68,8 +69,8 @@ class ITStocks:
 
 class AutoStocks(ITStocks):
     def __init__(self) -> None:
-        self.df = pd.read_csv("../AUTO.NS.CSV") 
-        self.COMPANY_LIST = ['AUTO.NS', 'TVSMOTOR.NS', 'TATAMOTORS.NS',
+        self.df = pd.read_csv("../AUTO.NS.CSV", parse_dates=True) 
+        self.COMPANY_LIST = ['TVSMOTOR.NS', 'TATAMOTORS.NS',
        'BAJAJ-AUTO.NS', 'M&M.NS', 'HEROMOTOCO.NS', 'MARUTI.NS',
        'EICHERMOT.NS', 'BOSCHLTD.NS', 'BALKRISIND.NS', 'ASHOKLEY.NS',
        'EXIDEIND.NS', 'BHARATFORG.NS', 'AMARAJABAT.NS', 'MRF.NS',
@@ -78,17 +79,77 @@ class AutoStocks(ITStocks):
 
 class BankStocks(ITStocks): 
     def __init__(self) -> None:
-        self.df = pd.read_csv("../BANK.NS.CSV")
-        self.COMPANY_LIST = ['BANK.NS', 'BANDHANBNK.NS',
+        self.df = pd.read_csv("../BANK.NS.CSV", parse_dates=True)
+        self.COMPANY_LIST = ['BANDHANBNK.NS',
        'KOTAKBANK.NS', 'HDFCBANK.NS', 'SBIN.NS', 'FEDERALBNK.NS',
        'RBLBANK.NS', 'IDFCFIRSTB.NS', 'INDUSINDBK.NS', 'AXISBANK.NS',
        'PNB.NS', 'AUBANK.NS', 'ICICIBANK.NS']
 
 class PharmaStocks(ITStocks): 
     def __init__(self) -> None:
-        self.df = pd.read_csv("../PHARMA.NS.CSV")
+        self.df = pd.read_csv("../PHARMA.NS.CSV", parse_dates=True)
         self.COMPANY_LIST = ['ABBOTINDIA.NS', 'APLLTD.NS', 'ALKEM.NS', 'AUROPHARMA.NS',
        'BIOCON.NS', 'CADILAHC.NS', 'CIPLA.NS', 'DIVISLAB.NS',
        'DRREDDY.NS', 'GLAND.NS', 'GLENMARK.NS', 'GRANULES.NS',
        'IPCALAB.NS', 'LAURUSLABS.NS', 'LUPIN.NS', 'NATCOPHARM.NS',
        'PFIZER.NS', 'STAR.NS', 'SUNPHARMA.NS', 'TORNTPHARM.NS']
+
+class NiftyFifty(ITStocks):
+    def __init__(self) -> None:
+        self.df = pd.read_csv("../NIFTY50.CAP.NS.CSV", parse_dates=True)
+        self.COMPANY_LIST = ['ADANIPORTS.NS', 'ASIANPAINT.NS', 'AXISBANK.NS', 'BAJAJ-AUTO.NS',
+       'BAJFINANCE.NS', 'BAJAJFINSV.NS', 'BPCL.NS', 'BHARTIARTL.NS',
+       'BRITANNIA.NS', 'CIPLA.NS', 'COALINDIA.NS', 'DIVISLAB.NS',
+       'DRREDDY.NS', 'EICHERMOT.NS', 'GRASIM.NS', 'HCLTECH.NS',
+       'HDFCBANK.NS', 'HDFCLIFE.NS', 'HEROMOTOCO.NS', 'HINDALCO.NS',
+       'HINDUNILVR.NS', 'HDFC.NS', 'ICICIBANK.NS', 'ITC.NS', 'IOC.NS',
+       'INDUSINDBK.NS', 'INFY.NS', 'JSWSTEEL.NS', 'KOTAKBANK.NS', 'LT.NS',
+       'M&M.NS', 'MARUTI.NS', 'NTPC.NS', 'NESTLEIND.NS', 'ONGC.NS',
+       'POWERGRID.NS', 'RELIANCE.NS', 'SBILIFE.NS', 'SHREECEM.NS',
+       'SBIN.NS', 'SUNPHARMA.NS', 'TCS.NS', 'TATACONSUM.NS',
+       'TATAMOTORS.NS', 'TATASTEEL.NS', 'TECHM.NS', 'TITAN.NS', 'UPL.NS',
+       'ULTRACEMCO.NS', 'WIPRO.NS']
+
+
+
+
+class DisplayReturns():
+    """
+    Displays Returns of all sectors
+    """
+    def __init__(self) -> None:
+        self.display_returns()
+    
+    def equally_weighted_returns(self,stock_object):
+        df = stock_object.df
+        df = df.set_index('Date')
+        all_close_values = []
+        N = len(stock_object.COMPANY_LIST)
+        for i in range(N):
+            temp_df = df[df['ticker'] == stock_object.COMPANY_LIST[i]]['Adj Close'].pct_change() 
+            #temp_df = (temp_df.cumprod() + 1) - 1
+            #print(temp_df.isnull().sum(), stock_object.COMPANY_LIST[i],stock_object.__class__.__name__)
+            all_close_values.append(temp_df)
+        #print("\n")
+        combined = pd.concat(all_close_values, axis = 1)
+        combined = combined.fillna(0)
+        #combined = (combined + 1).cumprod() - 1
+        equal_weights = np.repeat(1/N,N)
+        equal_returns = combined.mul(equal_weights, axis = 1).sum(axis = 1)
+        equal_returns = equal_returns.to_frame(stock_object.__class__.__name__)
+        return equal_returns 
+
+    def compare_equally_weighted_returns(self,object_iterator): 
+        df = []
+        for stock_object in object_iterator: 
+            ewr = self.equally_weighted_returns(stock_object)
+            df.append(ewr)
+        df2 = pd.concat(df, axis = 1)
+        return df2.dropna()
+    def display_returns(self):
+        objects = (ITStocks(), AutoStocks(), BankStocks(), PharmaStocks(), NiftyFifty())
+        equal_returns = self.compare_equally_weighted_returns(objects)
+        equal_cumulative_returns = (equal_returns + 1).cumprod() - 1
+        equal_returns.iplot(kind = 'histogram', theme = 'solar')
+        equal_cumulative_returns.iplot(kind = 'histogram', theme = 'solar')
+        equal_cumulative_returns.iplot(theme = 'solar')
