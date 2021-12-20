@@ -14,7 +14,7 @@ class ITStocks:
     def __init__(self) -> None:
     
         self.df = pd.read_csv("../IT.NS.CSV")
-        self.IT_COMPANY_LIST = ['MPHASIS.NS', 'COFORGE.NS', 'MINDTREE.NS', 'INFY.NS', 'TECHM.NS',
+        self.COMPANY_LIST = ['MPHASIS.NS', 'COFORGE.NS', 'MINDTREE.NS', 'INFY.NS', 'TECHM.NS',
         'LTI.NS', 'HCLTECH.NS', 'TCS.NS', 'WIPRO.NS', 'LTTS.NS']
 
 
@@ -53,7 +53,7 @@ class ITStocks:
 
     def display_vizs(self):
         controls = widgets.interact(self.pick_company,
-                                company_name = widgets.Dropdown(options = self.IT_COMPANY_LIST,index = 2),
+                                company_name = widgets.Dropdown(options = self.COMPANY_LIST,index = 2),
                                 time_period_start = widgets.DatePicker(description = 'Pick a time'),
                                 time_period_end = widgets.DatePicker(description = 'Pick a time'),
                                 time_offset = widgets.ToggleButtons(
@@ -66,4 +66,29 @@ class ITStocks:
                                                                 )
                             )
 
-    
+class AutoStocks(ITStocks):
+    def __init__(self) -> None:
+        self.df = pd.read_csv("../AUTO.NS.CSV") 
+        self.COMPANY_LIST = ['AUTO.NS', 'TVSMOTOR.NS', 'TATAMOTORS.NS',
+       'BAJAJ-AUTO.NS', 'M&M.NS', 'HEROMOTOCO.NS', 'MARUTI.NS',
+       'EICHERMOT.NS', 'BOSCHLTD.NS', 'BALKRISIND.NS', 'ASHOKLEY.NS',
+       'EXIDEIND.NS', 'BHARATFORG.NS', 'AMARAJABAT.NS', 'MRF.NS',
+       'TIINDIA.NS']
+
+
+class BankStocks(ITStocks): 
+    def __init__(self) -> None:
+        self.df = pd.read_csv("../BANK.NS.CSV")
+        self.COMPANY_LIST = ['BANK.NS', 'BANDHANBNK.NS',
+       'KOTAKBANK.NS', 'HDFCBANK.NS', 'SBIN.NS', 'FEDERALBNK.NS',
+       'RBLBANK.NS', 'IDFCFIRSTB.NS', 'INDUSINDBK.NS', 'AXISBANK.NS',
+       'PNB.NS', 'AUBANK.NS', 'ICICIBANK.NS']
+
+class PharmaStocks(ITStocks): 
+    def __init__(self) -> None:
+        self.df = pd.read_csv("../PHARMA.NS.CSV")
+        self.COMPANY_LIST = ['ABBOTINDIA.NS', 'APLLTD.NS', 'ALKEM.NS', 'AUROPHARMA.NS',
+       'BIOCON.NS', 'CADILAHC.NS', 'CIPLA.NS', 'DIVISLAB.NS',
+       'DRREDDY.NS', 'GLAND.NS', 'GLENMARK.NS', 'GRANULES.NS',
+       'IPCALAB.NS', 'LAURUSLABS.NS', 'LUPIN.NS', 'NATCOPHARM.NS',
+       'PFIZER.NS', 'STAR.NS', 'SUNPHARMA.NS', 'TORNTPHARM.NS']
