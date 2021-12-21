@@ -6,6 +6,7 @@ import seaborn as sns
 from scipy.optimize import minimize 
 import matplotlib.pyplot as plt 
 import ipywidgets as widgets
+import numba as nb
 from IPython.display import display
 def drawdown(return_series: pd.Series): 
     """Takes a time series of asset returns.
@@ -637,3 +638,76 @@ def funding_ratio(assets, liabilities, rate_of_intrest):
     we have 0.8 money but we need 1 
     """
     return assets / present_value(liabilities, rate_of_intrest) 
+
+
+
+import math 
+@nb.njit()
+def instantenous_to_annual_rate(short_rate_of_intrest): 
+    """
+    Converts short rate to annualized rate of intrest 
+    r_annual = exp(short_rate_of_intrest) - 1 
+    """
+    return np.expm1(short_rate_of_intrest)
+@nb.njit()
+def annual_to_instantenous_rate(annual_rate_of_intrest): 
+    """
+    Convert annualized rate to a short-rate 
+    """
+    return np.log1p(annual_rate_of_intrest) 
+@nb.njit()
+def cir_model_numba(num_years = 10, num_senarios = 1, a = 0.05, b = 0.03, sigma = 0.05, steps_per_year = 12, initial_intrest_rate = 0.0): 
+    """
+    Implements the cir model 
+    :param num_years: Number of years to generate the data for
+    :param num_senarios: Number of senarios
+    :param a: rate of mean reversion
+    :param b: long term mean of intrest rate
+    :param sigma: volatility 
+    :steps_per_year: granularity of simulations
+    :param initial_intrest_rate: Intrest rate before the simulations start ,if initial intrest rate is not mentioned set the initial intrest rate long term mean of intrest
+    """
+    # if initial intrest rate is not mentioned set the initial intrest rate long term mean of intrest 
+    if initial_intrest_rate == 0.0: initial_intrest_rate = b 
+    # this intrest rate should be converted into a instantenous rate 
+    # because cir model only works only with instantenous intrest rate at time t 
+    initial_intrest_rate = annual_to_instantenous_rate(initial_intrest_rate) 
+    
+    dt = 1 / steps_per_year 
+    # because i am going to initialize that array of rates and the rates are 
+    # going to contain initial rate at row zero so i need one more time step 
+    num_steps = int(num_years * steps_per_year) + 1 
+    shock = np.random.normal(0, scale = np.sqrt(dt), size = (num_steps,num_senarios)) 
+    rates = np.empty_like(shock)
+    # rates is an empty array with initial value set from the initial_intrest_rate 
+    # and progressively we will be calculating the rate based in last relative rate 
+    rates[0] = initial_intrest_rate 
+    # the looping starts at 1 because we have already filled the 
+    # initial rate 
+    for step in range(1, num_steps): 
+        # r_t = instantanous intrest rate at time t 
+        # we are referencing the rate from rates array 
+        # at step 1 we will be looking rates from step zero to calculate the next rate 
+        # and to this equation we will be using the shock term 
+        r_t = rates[step - 1]
+        d_r_t = a * (b - r_t) + sigma * np.sqrt(r_t)*shock[step]
+        # we have found the difference of rates hence we can update the next rate 
+        rates[step] = np.abs(r_t + d_r_t)
+    return instantenous_to_annual_rate(rates) 
+
+
+def show_cir(initial_intrest_rate = 0.03, a = 0.5, b = 0.03, sigma = 0.05, num_senarios = 5): 
+    pd.DataFrame(cir_model_numba(initial_intrest_rate=initial_intrest_rate,b = b, a = a, sigma=sigma,num_senarios = num_senarios)).iplot(theme = 'solar',  dimensions = (1200,700)
+                                                                                                                                        )
+
+
+def display_cir():
+    controls = widgets.interact(show_cir,
+                                initial_intrest_rate = widgets.FloatSlider(min = 0, max = 0.15, step = 0.01, value = 0.02),
+                                a = widgets.FloatSlider(min = 0, max = 1, step = 0.1, value = 0.5),
+                                b = widgets.FloatSlider(min = 0, max = 0.15, step = 0.01, value = 0.03),
+                                sigma = widgets.FloatSlider(min = 0, max = 0.1, step = 0.01, value = 0.05),
+                                num_senarios = widgets.IntSlider(min = 1, max = 100, step = 5, value = 10)
+                            )
+    return controls 
+                                                               
