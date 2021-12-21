@@ -1,3 +1,4 @@
+from datetime import date
 import pandas as pd 
 import scipy.stats as st
 import numpy as np 
@@ -589,6 +590,7 @@ def show_cppi(n_senarios = 50, mu = 0.07, sigma = 0.15, m = 3, floor = 0.8, risk
     if floor > 0.01: 
         hist_ax.axhline(y = start * floor, ls = '--', color = 'red')
         hist_ax.annotate(f"Violations: {number_failures} \n\nShortfall = ${expected_shortfall}", xy = (0.7,0.7), xycoords = 'axes fraction')
+    plt.tight_layout()
     
 def display_cppi(show_cppi = show_cppi):
     """
@@ -607,3 +609,31 @@ def display_cppi(show_cppi = show_cppi):
 
     display(cppi_controls)
 
+
+def discount(time_period, rate_of_intrest): 
+    """
+    Compute the price of a pure discount bond that pays 
+    1 unit at time at time_period where time_period is in years 
+    and rate_of_intrest is the annual intrest date 
+
+    simply saying what is value of 1 unit currency `time_period` years from now.
+    """
+
+    return (1 + rate_of_intrest) ** (-time_period)
+
+def present_value(liabilities, rate_of_intrest): 
+    """
+    Compute the present value of a list of liabilities given by the time (as index) and amounts as values
+    """
+    dates = liabilities.index 
+    discounted_liabilities = discount(dates, rate_of_intrest)  
+    return (discounted_liabilities * liabilities).sum() 
+
+def funding_ratio(assets, liabilities, rate_of_intrest): 
+    """
+    Computes the funding ratio of a series of liabilities, based on an intrest rate and current value of assets
+
+    if funding_ratio = 0.8 how much money do we have compared to how much money we need hence 
+    we have 0.8 money but we need 1 
+    """
+    return assets / present_value(liabilities, rate_of_intrest) 
