@@ -11,6 +11,9 @@ from . import pfinance_risk_kit as pfk
 cf.go_offline()
 cf.set_config_file(offline=False, world_readable=True)
 import datetime
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.graphics.tsaplots import plot_acf
+from pmdarima import auto_arima
 
 class ITStocks:
     def __init__(self) -> None:
@@ -322,4 +325,51 @@ class DisplayRiskRatios:
                      annualized_volatility = self.g
 
                     )
+
+class FitArima:
+    def __init__(self, series_to_predict) -> None:
+        self.close_series = series_to_predict 
+        self.model = self.fit_autoarima()
+    
+    def perform_decomposition(self): 
+        dec_object = seasonal_decompose(self.close_series,model = 'multiplicative',period = 256)
+        df = pd.concat([dec_object.observed,dec_object.trend,dec_object.seasonal, dec_object.resid], axis = 1)
+        df.iplot(subplots = True, theme = 'solar', colorscale = 'Set2', width = 1.5, dimensions = (1000,500)) 
+        
+    def fit_autoarima(self):
+
+        seasonal_model = auto_arima(self.close_series,
+                               start_p = 0,
+                               start_q = 0,
+                               test = 'adf',
+                               max_p = 3,
+                               max_q = 3,
+                               start_P = 0,
+                                start_Q=0, 
+                                max_P=2, max_Q=2,
+                                information_criterion='aic',
+                               seasonal = True,
+                               d = None,
+                               trace = True,
+                               D = 1,
+                                n_jobs=4,
+                             stepwise=False,
+                            error_action = 'ignore',
+                              )
+        return seasonal_model 
+    
+    def plot_diagnosis(self): 
+        plt.style.use('seaborn')
+        print(self.model.summary())
+        self.model.plot_diagnostics();
+    
+    def forecast_values(self,periods): 
+        fc = self.model.predict(n_periods = periods)
+        index_of_fc =pd.period_range(start = self.close_series.index[-1], periods = periods)
+        fc_series = pd.Series(fc, index = index_of_fc) 
+        plt.figure()
+        fc_series.plot()
+        self.close_series[-200:].plot()
+    
+    
     
