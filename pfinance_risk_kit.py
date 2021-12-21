@@ -711,3 +711,79 @@ def display_cir():
                             )
     return controls 
                                                                
+
+
+
+
+#@njit(fastmath = True)
+@nb.njit()
+def price_bond(ttm, r,h,a,b,sigma):
+    """
+    :param ttm: T - t where T is maturity and t is time step `t`
+    :param r: rate of intrest at time step t
+    """
+    _A = ((2*h*math.exp((h+a)*ttm/2))/(2*h+(h+a)*(math.exp(h*ttm)-1)))**(2*a*b/sigma**2)
+    _B = (2*(math.exp(h*ttm)-1))/(2*h + (h+a)*(math.exp(h*ttm)-1))
+    _P = _A*np.exp(-_B*r)
+    return _P
+    
+#@njit(parallel = True, fastmath = True, nogil = True)
+@nb.njit()
+def cir_model_bond_returns(num_years = 10, num_senarios = 1, a = 0.05, b = 0.03, sigma = 0.05, steps_per_year = 12, initial_intrest_rate = 0.0):
+    """
+    Implements the cir model 
+    :param num_years: Number of years to generate the data for
+    :param num_senarios: Number of senarios
+    :param a: rate of mean reversion
+    :param b: long term mean of intrest rate
+    :param sigma: volatility 
+    :steps_per_year: granularity of simulations
+    :param initial_intrest_rate: Intrest rate before the simulations start ,if initial intrest rate is not mentioned set the initial intrest rate long term mean of intrest
+    """
+
+    if initial_intrest_rate  == 0.0: initial_intrest_rate = b 
+    initial_intrest_rate = annual_to_instantenous_rate(initial_intrest_rate) 
+    dt = 1 / steps_per_year 
+    num_steps = int(num_years * steps_per_year) + 1 
+    shock = np.random.normal(0, scale = np.sqrt(dt), size = (num_steps, num_senarios)) 
+    rates = np.empty_like(shock) 
+    rates[0] = initial_intrest_rate 
+#     @njit()
+#     def price_bond(ttm, r):
+#         """
+#         :param ttm: T - t where T is maturity and t is time step `t`
+#         :param r: rate of intrest at time step t
+#         """
+#         _A = ((2*h*math.exp((h+a)*ttm/2))/(2*h+(h+a)*(math.exp(h*ttm)-1)))**(2*a*b/sigma**2)
+#         _B = (2*(math.exp(h*ttm)-1))/(2*h + (h+a)*(math.exp(h*ttm)-1))
+#         _P = _A*np.exp(-_B*r)
+#         return _P
+    ### For price generation 
+    h = math.sqrt(a**2 + 2*sigma**2) 
+    prices = np.empty_like(shock) 
+    # num_years: bond maturity 
+    # 0: initial no time has passed 
+    prices[0] = price_bond(num_years,initial_intrest_rate,h,a,b,sigma) 
+    ### 
+    # the looping starts at 1 because we have we have already initialized price and intrest rate 
+    for step in range(1, num_steps): 
+        r_t = rates[step - 1] 
+        d_r_t = a * (b - r_t) * dt + sigma * np.sqrt(r_t) * shock[step] 
+        rates[step] = np.abs(r_t + d_r_t) 
+        prices[step] = price_bond(num_years - step*dt,rates[step],h,a,b,sigma)
+    return instantenous_to_annual_rate(rates), prices 
+
+
+def show_cir_prices(initial_intrest_rate = 0.03, a = 0.5, b = 0.03, sigma = 0.05, num_senarios = 5): 
+    rates, prices = cir_model_bond_returns(num_years = 10, num_senarios = num_senarios, a = a, b = b, sigma = sigma, steps_per_year = 12, initial_intrest_rate = initial_intrest_rate)
+    pd.DataFrame(prices).iplot(theme = 'solar', dimensions = (1200,700))                                                                     
+
+def display_cir_prices():
+    controls = widgets.interact(show_cir_prices,
+                            initial_intrest_rate = widgets.FloatSlider(min = 0, max = 0.15, step = 0.01, value = 0.03),
+                            a = widgets.FloatSlider(min = 0, max = 1, step = 0.1, value = 0.5),
+                            b = widgets.FloatSlider(min = 0, max = 0.15, step = 0.01, value = 0.03),
+                            sigma = widgets.FloatSlider(min = 0, max = 0.1, step = 0.01, value = 0.05),
+                            num_senarios = widgets.IntSlider(min = 1, max = 200, step = 5, value = 10)
+                           )
+    return controls 
