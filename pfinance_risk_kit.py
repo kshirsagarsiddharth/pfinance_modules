@@ -1,3 +1,4 @@
+from datetime import date
 import pandas as pd 
 import scipy.stats as st
 import numpy as np 
@@ -5,6 +6,7 @@ import seaborn as sns
 from scipy.optimize import minimize 
 import matplotlib.pyplot as plt 
 import ipywidgets as widgets
+import numba as nb
 from IPython.display import display
 def drawdown(return_series: pd.Series): 
     """Takes a time series of asset returns.
@@ -589,6 +591,7 @@ def show_cppi(n_senarios = 50, mu = 0.07, sigma = 0.15, m = 3, floor = 0.8, risk
     if floor > 0.01: 
         hist_ax.axhline(y = start * floor, ls = '--', color = 'red')
         hist_ax.annotate(f"Violations: {number_failures} \n\nShortfall = ${expected_shortfall}", xy = (0.7,0.7), xycoords = 'axes fraction')
+    plt.tight_layout()
     
 def display_cppi(show_cppi = show_cppi):
     """
@@ -607,3 +610,180 @@ def display_cppi(show_cppi = show_cppi):
 
     display(cppi_controls)
 
+
+def discount(time_period, rate_of_intrest): 
+    """
+    Compute the price of a pure discount bond that pays 
+    1 unit at time at time_period where time_period is in years 
+    and rate_of_intrest is the annual intrest date 
+
+    simply saying what is value of 1 unit currency `time_period` years from now.
+    """
+
+    return (1 + rate_of_intrest) ** (-time_period)
+
+def present_value(liabilities, rate_of_intrest): 
+    """
+    Compute the present value of a list of liabilities given by the time (as index) and amounts as values
+    """
+    dates = liabilities.index 
+    discounted_liabilities = discount(dates, rate_of_intrest)  
+    return (discounted_liabilities * liabilities).sum() 
+
+def funding_ratio(assets, liabilities, rate_of_intrest): 
+    """
+    Computes the funding ratio of a series of liabilities, based on an intrest rate and current value of assets
+
+    if funding_ratio = 0.8 how much money do we have compared to how much money we need hence 
+    we have 0.8 money but we need 1 
+    """
+    return assets / present_value(liabilities, rate_of_intrest) 
+
+
+
+import math 
+@nb.njit()
+def instantenous_to_annual_rate(short_rate_of_intrest): 
+    """
+    Converts short rate to annualized rate of intrest 
+    r_annual = exp(short_rate_of_intrest) - 1 
+    """
+    return np.expm1(short_rate_of_intrest)
+@nb.njit()
+def annual_to_instantenous_rate(annual_rate_of_intrest): 
+    """
+    Convert annualized rate to a short-rate 
+    """
+    return np.log1p(annual_rate_of_intrest) 
+@nb.njit()
+def cir_model_numba(num_years = 10, num_senarios = 1, a = 0.05, b = 0.03, sigma = 0.05, steps_per_year = 12, initial_intrest_rate = 0.0): 
+    """
+    Implements the cir model 
+    :param num_years: Number of years to generate the data for
+    :param num_senarios: Number of senarios
+    :param a: rate of mean reversion
+    :param b: long term mean of intrest rate
+    :param sigma: volatility 
+    :steps_per_year: granularity of simulations
+    :param initial_intrest_rate: Intrest rate before the simulations start ,if initial intrest rate is not mentioned set the initial intrest rate long term mean of intrest
+    """
+    # if initial intrest rate is not mentioned set the initial intrest rate long term mean of intrest 
+    if initial_intrest_rate == 0.0: initial_intrest_rate = b 
+    # this intrest rate should be converted into a instantenous rate 
+    # because cir model only works only with instantenous intrest rate at time t 
+    initial_intrest_rate = annual_to_instantenous_rate(initial_intrest_rate) 
+    
+    dt = 1 / steps_per_year 
+    # because i am going to initialize that array of rates and the rates are 
+    # going to contain initial rate at row zero so i need one more time step 
+    num_steps = int(num_years * steps_per_year) + 1 
+    shock = np.random.normal(0, scale = np.sqrt(dt), size = (num_steps,num_senarios)) 
+    rates = np.empty_like(shock)
+    # rates is an empty array with initial value set from the initial_intrest_rate 
+    # and progressively we will be calculating the rate based in last relative rate 
+    rates[0] = initial_intrest_rate 
+    # the looping starts at 1 because we have already filled the 
+    # initial rate 
+    for step in range(1, num_steps): 
+        # r_t = instantanous intrest rate at time t 
+        # we are referencing the rate from rates array 
+        # at step 1 we will be looking rates from step zero to calculate the next rate 
+        # and to this equation we will be using the shock term 
+        r_t = rates[step - 1]
+        d_r_t = a * (b - r_t) + sigma * np.sqrt(r_t)*shock[step]
+        # we have found the difference of rates hence we can update the next rate 
+        rates[step] = np.abs(r_t + d_r_t)
+    return instantenous_to_annual_rate(rates) 
+
+
+def show_cir(initial_intrest_rate = 0.03, a = 0.5, b = 0.03, sigma = 0.05, num_senarios = 5): 
+    pd.DataFrame(cir_model_numba(initial_intrest_rate=initial_intrest_rate,b = b, a = a, sigma=sigma,num_senarios = num_senarios)).iplot(theme = 'solar',  dimensions = (1200,700)
+                                                                                                                                        )
+
+
+def display_cir():
+    controls = widgets.interact(show_cir,
+                                initial_intrest_rate = widgets.FloatSlider(min = 0, max = 0.15, step = 0.01, value = 0.02),
+                                a = widgets.FloatSlider(min = 0, max = 1, step = 0.1, value = 0.5),
+                                b = widgets.FloatSlider(min = 0, max = 0.15, step = 0.01, value = 0.03),
+                                sigma = widgets.FloatSlider(min = 0, max = 0.1, step = 0.01, value = 0.05),
+                                num_senarios = widgets.IntSlider(min = 1, max = 100, step = 5, value = 10)
+                            )
+    return controls 
+                                                               
+
+
+
+
+#@njit(fastmath = True)
+@nb.njit()
+def price_bond(ttm, r,h,a,b,sigma):
+    """
+    :param ttm: T - t where T is maturity and t is time step `t`
+    :param r: rate of intrest at time step t
+    """
+    _A = ((2*h*math.exp((h+a)*ttm/2))/(2*h+(h+a)*(math.exp(h*ttm)-1)))**(2*a*b/sigma**2)
+    _B = (2*(math.exp(h*ttm)-1))/(2*h + (h+a)*(math.exp(h*ttm)-1))
+    _P = _A*np.exp(-_B*r)
+    return _P
+    
+#@njit(parallel = True, fastmath = True, nogil = True)
+@nb.njit()
+def cir_model_bond_returns(num_years = 10, num_senarios = 1, a = 0.05, b = 0.03, sigma = 0.05, steps_per_year = 12, initial_intrest_rate = 0.0):
+    """
+    Implements the cir model 
+    :param num_years: Number of years to generate the data for
+    :param num_senarios: Number of senarios
+    :param a: rate of mean reversion
+    :param b: long term mean of intrest rate
+    :param sigma: volatility 
+    :steps_per_year: granularity of simulations
+    :param initial_intrest_rate: Intrest rate before the simulations start ,if initial intrest rate is not mentioned set the initial intrest rate long term mean of intrest
+    """
+
+    if initial_intrest_rate  == 0.0: initial_intrest_rate = b 
+    initial_intrest_rate = annual_to_instantenous_rate(initial_intrest_rate) 
+    dt = 1 / steps_per_year 
+    num_steps = int(num_years * steps_per_year) + 1 
+    shock = np.random.normal(0, scale = np.sqrt(dt), size = (num_steps, num_senarios)) 
+    rates = np.empty_like(shock) 
+    rates[0] = initial_intrest_rate 
+#     @njit()
+#     def price_bond(ttm, r):
+#         """
+#         :param ttm: T - t where T is maturity and t is time step `t`
+#         :param r: rate of intrest at time step t
+#         """
+#         _A = ((2*h*math.exp((h+a)*ttm/2))/(2*h+(h+a)*(math.exp(h*ttm)-1)))**(2*a*b/sigma**2)
+#         _B = (2*(math.exp(h*ttm)-1))/(2*h + (h+a)*(math.exp(h*ttm)-1))
+#         _P = _A*np.exp(-_B*r)
+#         return _P
+    ### For price generation 
+    h = math.sqrt(a**2 + 2*sigma**2) 
+    prices = np.empty_like(shock) 
+    # num_years: bond maturity 
+    # 0: initial no time has passed 
+    prices[0] = price_bond(num_years,initial_intrest_rate,h,a,b,sigma) 
+    ### 
+    # the looping starts at 1 because we have we have already initialized price and intrest rate 
+    for step in range(1, num_steps): 
+        r_t = rates[step - 1] 
+        d_r_t = a * (b - r_t) * dt + sigma * np.sqrt(r_t) * shock[step] 
+        rates[step] = np.abs(r_t + d_r_t) 
+        prices[step] = price_bond(num_years - step*dt,rates[step],h,a,b,sigma)
+    return instantenous_to_annual_rate(rates), prices 
+
+
+def show_cir_prices(initial_intrest_rate = 0.03, a = 0.5, b = 0.03, sigma = 0.05, num_senarios = 5): 
+    rates, prices = cir_model_bond_returns(num_years = 10, num_senarios = num_senarios, a = a, b = b, sigma = sigma, steps_per_year = 12, initial_intrest_rate = initial_intrest_rate)
+    pd.DataFrame(prices).iplot(theme = 'solar', dimensions = (1200,700))                                                                     
+
+def display_cir_prices():
+    controls = widgets.interact(show_cir_prices,
+                            initial_intrest_rate = widgets.FloatSlider(min = 0, max = 0.15, step = 0.01, value = 0.03),
+                            a = widgets.FloatSlider(min = 0, max = 1, step = 0.1, value = 0.5),
+                            b = widgets.FloatSlider(min = 0, max = 0.15, step = 0.01, value = 0.03),
+                            sigma = widgets.FloatSlider(min = 0, max = 0.1, step = 0.01, value = 0.05),
+                            num_senarios = widgets.IntSlider(min = 1, max = 200, step = 5, value = 10)
+                           )
+    return controls 
