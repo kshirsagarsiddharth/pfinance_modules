@@ -35,6 +35,13 @@ def average_true_range(highs, lows, close, period = 14):
     
 @nb.njit()
 def average_directional_index(highs, lows, close, periods = 14):
+    """
+    The direction of the ADX line is important for reading trend strength. 
+
+    When ADX is rising, trend strength is increasing and the price moves in the direction of trend 
+
+    When the line is falling trend strength is decreasing and price enters a period of retractment. 
+    """
     alpha = 1 / periods
     dm_plus = highs[1:] - highs[:-1]
     dm_minus = lows[:-1] - lows[1:] 
@@ -57,6 +64,14 @@ def simple_moving_average(array:np.array, window:int) -> np.array:
 
 @nb.njit()
 def rsi(array, periods = 14, want_ewma = True):
+    """
+    Ossilation between 0 and 100 
+    if RSI > 70:
+        asset is overbought which means asset is overvalued and price may reverse. 
+    elif RSI < 30: 
+        asset is oversold which means the asset is undervalued and price may rally. 
+
+    """
     diff = np.diff(array)
 # if difference is negative we have loss hence we make that loss zero 
     gains = np.where(diff < 0,0.0,diff)
